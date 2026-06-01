@@ -1,7 +1,8 @@
 """Decode utilities — base64, URL parsing, embed ID extraction."""
 
+import re
 import base64
-from urllib.parse import urljoin, urlparse, unquote
+from urllib.parse import urljoin, urlparse, unquote, urlencode, parse_qs, urlunparse
 
 
 def b64decode(s):
@@ -40,6 +41,26 @@ def is_valid_url(s):
         return all([result.scheme, result.netloc])
     except Exception:
         return False
+
+
+# Query params that might contain sensitive tokens/keys
+SENSITIVE_PARAMS = {
+    "token", "key", "api_key", "apikey", "auth", "signature",
+    "secret", "password", "session", "sid", "access_token",
+    "refresh_token", "jwt", "bearer", "cookie",
+}
+
+
+def sanitize_url(url):
+    """Strip sensitive query parameters from a URL to prevent token leakage."""
+    parsed = urlparse(url)
+    params = parse_qs(parsed.query, keep_blank_values=True)
+
+    cleaned = {k: v for k, v in params.items()
+               if k.lower() not in SENSITIVE_PARAMS}
+
+    new_query = urlencode(cleaned, doseq=True) if cleaned else ""
+    return urlunparse(parsed._replace(query=new_query))
 
 
 def decode_embed_id(encoded):

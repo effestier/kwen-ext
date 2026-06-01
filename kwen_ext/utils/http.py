@@ -1,6 +1,7 @@
 """HTTP client with Cloudflare bypass support."""
 
 import requests
+from urllib.parse import urlparse
 
 try:
     import cloudscraper
@@ -13,6 +14,39 @@ DEFAULT_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.5",
 }
+
+# Block internal/private IPs to prevent SSRF
+BLOCKED_HOSTS = {
+    "localhost", "127.0.0.1", "0.0.0.0", "::1",
+    "10.0.0.0", "192.168.0.0", "172.16.0.0",
+    "metadata.google.internal", "169.254.169.254",
+}
+
+ALLOWED_SCHEMES = {"http", "https"}
+
+
+def validate_url(url):
+    """Validate a URL is safe to fetch. Raises ValueError if not."""
+    parsed = urlparse(url)
+
+    if parsed.scheme not in ALLOWED_SCHEMES:
+        raise ValueError(f"Blocked scheme: {parsed.scheme}")
+
+    hostname = (parsed.hostname or "").lower()
+
+    if hostname in BLOCKED_HOSTS:
+        raise ValueError(f"Blocked host: {hostname}")
+
+    # Block private IP ranges
+    if hostname.startswith(("10.", "192.168.", "172.16.", "172.17.", "172.18.",
+                            "172.19.", "172.2", "172.30.", "172.31.")):
+        raise ValueError(f"Blocked private IP: {hostname}")
+
+    # Block file:// and other dangerous schemes in redirects
+    if parsed.scheme not in ALLOWED_SCHEMES:
+        raise ValueError(f"Blocked scheme: {parsed.scheme}")
+
+    return True
 
 
 def get_client(force_cloudscraper=False):
@@ -29,10 +63,16 @@ def get_client(force_cloudscraper=False):
 
 def fetch(url, client=None, timeout=30):
     """Fetch a URL and return the response. Auto-retries with cloudscraper on 403."""
+    validate_url(url)
+
     if client is None:
         client = get_client()
 
     resp = client.get(url, timeout=timeout, allow_redirects=True)
+
+    # Validate redirect didn't go somewhere dangerous
+    if resp.url:
+        validate_url(resp.url)
 
     # If blocked and we're not already using cloudscraper, retry with it
     if resp.status_code == 403 and not HAS_CLOUDSCRAPER:

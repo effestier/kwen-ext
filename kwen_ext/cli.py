@@ -6,6 +6,7 @@ import sys
 
 from kwen_ext import __version__
 from kwen_ext.core import extract
+from kwen_ext.utils.decode import sanitize_url, is_valid_url
 
 
 BANNER = r"""
@@ -15,7 +16,7 @@ BANNER = r"""
  ██╔═██╗ ██║███╗██║██╔══╝  ██║╚██╗██║╚════╝██╔══╝   ██╔██╗    ██║
  ██║  ██╗╚███╔███╔╝███████╗██║ ╚████║      ███████╗██╔╝ ██╗   ██║
  ╚═╝  ╚═╝ ╚══╝╚══╝ ╚══════╝╚═╝  ╚═══╝      ╚══════╝╚═╝  ╚═╝   ╚═╝
-                        Media Extractor v{version}
+                         Media Extractor v{version}
 """
 
 
@@ -34,7 +35,7 @@ def format_sources(result):
         lines.append(f"  Description: {desc}")
 
     if result.poster:
-        lines.append(f"  Poster: {result.poster}")
+        lines.append(f"  Poster: {sanitize_url(result.poster)}")
 
     # Embeds / Players
     if result.embeds:
@@ -47,29 +48,29 @@ def format_sources(result):
         if subs:
             lines.append("  SUB:")
             for e in subs:
-                lines.append(f"    {e['label']:20s} {e['url']}")
+                lines.append(f"    {e['label']:20s} {sanitize_url(e['url'])}")
 
         if dubs:
             lines.append("  DUB:")
             for e in dubs:
-                lines.append(f"    {e['label']:20s} {e['url']}")
+                lines.append(f"    {e['label']:20s} {sanitize_url(e['url'])}")
 
         if other:
             lines.append("  Other:")
             for e in other:
-                lines.append(f"    {e['label']:20s} {e['url']}")
+                lines.append(f"    {e['label']:20s} {sanitize_url(e['url'])}")
 
     # Direct video sources
     if result.sources:
         lines.append(f"\n  --- Video Sources ({len(result.sources)}) ---")
         for s in result.sources:
-            lines.append(f"    [{s['type']:5s}] {s.get('quality', '?'):6s} {s['url']}")
+            lines.append(f"    [{s['type']:5s}] {s.get('quality', '?'):6s} {sanitize_url(s['url'])}")
 
     # Downloads
     if result.downloads:
         lines.append(f"\n  --- Downloads ({len(result.downloads)}) ---")
         for d in result.downloads:
-            lines.append(f"    {d['quality']:8s} {d['host']:15s} {d['url']}")
+            lines.append(f"    {d['quality']:8s} {d['host']:15s} {sanitize_url(d['url'])}")
 
     # Extra metadata
     if result.metadata:
@@ -107,6 +108,18 @@ def main():
     parser.add_argument("--no-banner", action="store_true", help="Suppress the ASCII banner")
 
     args = parser.parse_args()
+
+    # Validate URL
+    if not is_valid_url(args.url):
+        print(f"  Error: Invalid URL: {args.url}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        from kwen_ext.utils.http import validate_url
+        validate_url(args.url)
+    except ValueError as e:
+        print(f"  Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
     if not args.no_banner:
         print(BANNER.format(version=__version__))

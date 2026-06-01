@@ -9,6 +9,12 @@ try:
 except ImportError:
     HAS_PLAYWRIGHT = False
 
+try:
+    from playwright_stealth import stealth_sync
+    HAS_STEALTH = True
+except ImportError:
+    HAS_STEALTH = False
+
 
 class BrowserSession:
     """
@@ -18,9 +24,10 @@ class BrowserSession:
     - Returns page HTML after JS rendering
     """
 
-    def __init__(self, headless=True, timeout=60000):
+    def __init__(self, headless=True, timeout=60000, browser_type="firefox"):
         self.headless = headless
         self.timeout = timeout
+        self.browser_type = browser_type
         self._playwright = None
         self._browser = None
         self._intercepted_urls = []
@@ -31,13 +38,11 @@ class BrowserSession:
             raise RuntimeError("playwright not installed. Run: pip install playwright && python -m playwright install chromium")
 
         self._playwright = sync_playwright().start()
-        self._browser = self._playwright.chromium.launch(
-            headless=self.headless,
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--no-sandbox",
-            ],
-        )
+
+        # Use Firefox by default (harder for Cloudflare to detect)
+        launcher = getattr(self._playwright, self.browser_type)
+        self._browser = launcher.launch(headless=self.headless)
+
         return self
 
     def __exit__(self, *args):
@@ -92,10 +97,15 @@ class BrowserSession:
         self._intercepted_urls = []
 
         context = self._browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
             viewport={"width": 1920, "height": 1080},
+            locale="en-US",
+            timezone_id="America/New_York",
         )
         page = context.new_page()
+
+        # Apply stealth if available
+        if HAS_STEALTH:
+            stealth_sync(page)
 
         # Listen for network responses
         page.on("response", self._on_response)
@@ -104,14 +114,12 @@ class BrowserSession:
             # Navigate and wait for Cloudflare challenge to resolve
             page.goto(url, wait_until="domcontentloaded", timeout=self.timeout)
 
-            # Wait for CF challenge to pass (check for "Just a moment..." title)
-            try:
-                page.wait_for_function(
-                    "() => !document.title.includes('Just a moment')",
-                    timeout=15000,
-                )
-            except Exception:
-                pass  # CF might not be present
+            # Wait longer for CF challenge to pass
+            for _ in range(3):  # Try 3 times
+                title = page.title()
+                if "just a moment" not in title.lower():
+                    break
+                page.wait_for_timeout(5000)
 
             # Wait for specific element if requested
             if wait_for:
@@ -145,10 +153,12 @@ class BrowserSession:
         self._video_urls = []
 
         context = self._browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
             viewport={"width": 1920, "height": 1080},
+            locale="en-US",
         )
         page = context.new_page()
+        if HAS_STEALTH:
+            stealth_sync(page)
         page.on("response", self._on_response)
 
         try:

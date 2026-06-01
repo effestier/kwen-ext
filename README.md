@@ -112,6 +112,32 @@ kwen-ext https://example.com/watch/some-movie/ --extractor wordpress
 kwen-ext https://example.com/watch/some-movie/ -v
 ```
 
+### Use headless browser (bypasses basic bot protection)
+
+```bash
+kwen-ext https://example.com/watch/some-movie/ --browser
+```
+
+### Resolve embed URLs to actual video streams
+
+```bash
+kwen-ext https://example.com/watch/some-movie/ --browser --resolve
+```
+
+### Download the video directly
+
+```bash
+kwen-ext https://example.com/watch/some-movie/ --browser --resolve --download movie.mp4
+```
+
+### Parse a saved HTML file (for Cloudflare-protected sites)
+
+```bash
+# 1. Open the page in your browser, save as page.html
+# 2. Then:
+kwen-ext https://example.com/watch/some-movie/ --html page.html
+```
+
 ### Pipe to other tools
 
 ```bash
@@ -273,24 +299,50 @@ And every time you want to grab a stream URL, you:
 
 ### "Cloudflare blocked the request"
 
-Some sites use Cloudflare bot protection. kwen-ext uses `cloudscraper` to handle this, but it doesn't always work. If you get blocked:
+Some sites use Cloudflare's "Managed Challenge" which blocks all automated tools — including headless browsers. This is by design.
 
+**Workaround — save the page HTML:**
+1. Open the page in your regular browser
+2. Right-click → Save As → Webpage, Complete (`page.html`)
+3. Run:
 ```bash
-# Try verbose mode to see what's happening
-kwen-ext <url> -v
+kwen-ext https://example.com/watch/ --html page.html
 ```
 
-If it's consistently blocked, the site likely has aggressive protection. Open an issue with the URL.
+This extracts everything from the saved HTML — players, downloads, metadata.
 
 ### "No media found"
 
-- Check if the page loads content dynamically (JavaScript). kwen-ext parses static HTML only.
+- Check if the page loads content dynamically (JavaScript). Use `--browser` flag.
 - Try `--extractor iframe` to force the generic extractor.
 - Use `-v` to see what the extractor is finding.
+
+### Browser not working
+
+Make sure playwright browsers are installed:
+```bash
+pip install playwright
+python -m playwright install chromium
+python -m playwright install firefox
+```
 
 ### Base64 decode errors
 
 Some sites use non-standard encoding. If you see garbled labels, it's usually harmless — the URL itself should still be correct.
+
+---
+
+## Limitations
+
+| Feature | Status |
+|---------|--------|
+| Static HTML extraction | Works |
+| Base64 embed decoding | Works |
+| WordPress/kiranime sites | Works |
+| Cloudflare bypass (basic) | Works |
+| Cloudflare Managed Challenge | Blocked — use `--html` workaround |
+| Embed → stream resolver | Works on non-CF player pages |
+| Video download | Works for direct mp4/m3u8 links |
 
 ---
 

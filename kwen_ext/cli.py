@@ -95,13 +95,19 @@ def main():
         description="Extract video streams, download links & metadata from streaming sites.",
         epilog="Examples:\n"
                "  kwen-ext https://example.com/watch/movie/\n"
+               "  kwen-ext https://example.com/watch/movie/ --browser\n"
+               "  kwen-ext https://example.com/watch/movie/ --browser --resolve\n"
                "  kwen-ext https://example.com/watch/movie/ --json\n"
+               "  kwen-ext https://example.com/watch/movie/ --download movie.mp4\n"
                "  kwen-ext https://example.com/watch/movie/ -v\n",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("url", help="URL of the page to extract from")
     parser.add_argument("--json", action="store_true", dest="json_output", help="Output as JSON")
     parser.add_argument("--extractor", "-e", help="Force a specific extractor (wordpress, iframe)")
+    parser.add_argument("--browser", "-b", action="store_true", help="Use headless browser (bypasses Cloudflare, renders JS)")
+    parser.add_argument("--resolve", "-r", action="store_true", help="Resolve embed URLs to actual video streams")
+    parser.add_argument("--download", "-d", help="Download video to specified path (e.g., movie.mp4)")
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
     parser.add_argument("--downloads-only", action="store_true", help="Show only download links")
     parser.add_argument("--html", help="Parse a saved HTML file instead of fetching URL")
@@ -143,6 +149,8 @@ def main():
                 args.url,
                 extractor_name=args.extractor,
                 verbose=args.verbose,
+                use_browser=args.browser,
+                resolve=args.resolve,
             )
     except Exception as e:
         error_msg = str(e)
@@ -151,17 +159,50 @@ def main():
         if "403" in error_msg:
             print("\n  Cloudflare blocked this request.", file=sys.stderr)
             print("  Workarounds:", file=sys.stderr)
-            print("    1. Save the page HTML from your browser (Ctrl+S), then:", file=sys.stderr)
+            print("    1. Use --browser flag: kwen-ext <url> --browser", file=sys.stderr)
+            print("    2. Save the page HTML from your browser (Ctrl+S), then:", file=sys.stderr)
             print(f"       kwen-ext {args.url} --html saved_page.html", file=sys.stderr)
-            print("    2. Use yt-dlp: yt-dlp <url>", file=sys.stderr)
-            print("    3. Use a browser extension like Video DownloadHelper", file=sys.stderr)
+            print("    3. Use yt-dlp: yt-dlp <url>", file=sys.stderr)
 
         if args.verbose:
             import traceback
             traceback.print_exc()
         sys.exit(1)
 
-    if args.json_output:
+    # Download video if requested
+    if args.download:
+        if not result.sources:
+            print("  Error: No video sources found to download.", file=sys.stderr)
+            sys.exit(1)
+
+        video_url = result.sources[0]["url"]
+        print(f"  Downloading: {video_url}")
+        print(f"  Saving to: {args.download}")
+
+        try:
+            from kwen_ext.utils.http import get_client
+            client = get_client()
+            resp = client.get(video_url, stream=True, timeout=60)
+            resp.raise_for_status()
+
+            total = int(resp.headers.get("content-length", 0))
+            downloaded = 0
+
+            with open(args.download, "wb") as f:
+                for chunk in resp.iter_content(chunk_size=8192):
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if total:
+                        pct = (downloaded / total) * 100
+                        print(f"\r  Progress: {pct:.1f}% ({downloaded // 1024 // 1024}MB)", end="", flush=True)
+
+            print(f"\n  Downloaded: {args.download}")
+
+        except Exception as e:
+            print(f"\n  Download failed: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    elif args.json_output:
         print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
     elif args.downloads_only:
         if result.downloads:

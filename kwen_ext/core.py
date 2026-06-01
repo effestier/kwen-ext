@@ -43,12 +43,36 @@ def extract_html(html_content, url="https://example.com", extractor_name=None, v
 
     # Override fetch_page to return our saved HTML
     soup = BeautifulSoup(html_content, "lxml")
-    ext.fetch_page = lambda u: (soup, html_content)
+    ext.fetch_page = lambda u, **kw: (soup, html_content, [])
 
     return ext.extract(url)
 
 
-def extract(url, extractor_name=None, verbose=False):
+def _resolve_embeds(result, ext, max_resolve=3, verbose=False):
+    """
+    Resolve embed URLs to actual video stream URLs using headless browser.
+    Only resolves if no direct sources were found.
+    """
+    if result.sources or not result.embeds:
+        return result
+
+    if verbose:
+        print(f"  Resolving {min(len(result.embeds), max_resolve)} embed URLs...")
+
+    resolved = 0
+    for embed in result.embeds[:max_resolve]:
+        if resolved >= max_resolve:
+            break
+        streams = ext.resolve_embed_streams(embed["url"])
+        if streams:
+            label = embed.get("label", "Unknown")
+            result.add_resolved_streams(streams, label=label)
+            resolved += 1
+
+    return result
+
+
+def extract(url, extractor_name=None, verbose=False, use_browser=False, resolve=False):
     """
     Extract media info from a URL.
 
@@ -56,6 +80,8 @@ def extract(url, extractor_name=None, verbose=False):
         url: The page URL to extract from
         extractor_name: Force a specific extractor (optional)
         verbose: Print debug info
+        use_browser: Use headless browser (bypasses Cloudflare, renders JS)
+        resolve: Resolve embed URLs to actual streams (uses headless browser)
 
     Returns:
         ExtractionResult with all found media
@@ -65,13 +91,25 @@ def extract(url, extractor_name=None, verbose=False):
         for cls in EXTRACTORS:
             if cls.name == extractor_name:
                 ext = cls(verbose=verbose)
-                return ext.extract(url)
+                result = ext.extract(url, use_browser=use_browser)
+                if resolve:
+                    result = _resolve_embeds(result, ext, verbose=verbose)
+                return result
         if FALLBACK.name == extractor_name:
             ext = FALLBACK(verbose=verbose)
-            return ext.extract(url)
+            result = ext.extract(url, use_browser=use_browser)
+            if resolve:
+                result = _resolve_embeds(result, ext, verbose=verbose)
+            return result
         raise ValueError(f"Unknown extractor: {extractor_name}")
 
     ext = get_extractor(url, verbose=verbose)
     if verbose:
         print(f"Using extractor: {ext.name}")
-    return ext.extract(url)
+
+    result = ext.extract(url, use_browser=use_browser)
+
+    if resolve:
+        result = _resolve_embeds(result, ext, verbose=verbose)
+
+    return result

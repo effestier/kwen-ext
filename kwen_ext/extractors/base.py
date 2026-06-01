@@ -33,6 +33,19 @@ class ExtractionResult:
     def has_content(self):
         return bool(self.sources or self.downloads or self.embeds)
 
+    def add_resolved_streams(self, streams, label=None):
+        """Add resolved stream URLs (from embed resolver) to sources."""
+        for stream in streams:
+            url = stream.get("url", "")
+            stype = stream.get("type", "unknown")
+            if url and url not in [s["url"] for s in self.sources]:
+                self.sources.append({
+                    "url": url,
+                    "type": stype,
+                    "quality": "unknown",
+                    "label": label or f"Resolved {stype}",
+                })
+
 
 class BaseExtractor:
     """
@@ -58,11 +71,27 @@ class BaseExtractor:
         domain = extract_domain(url)
         return any(d in domain for d in self.domains)
 
-    def fetch_page(self, url):
-        """Fetch and parse a page."""
+    def fetch_page(self, url, use_browser=False):
+        """Fetch and parse a page. If use_browser=True, use headless browser (bypasses CF)."""
         self.log(f"Fetching {url}")
+        if use_browser:
+            from kwen_ext.utils.http import fetch_with_browser
+            html, video_urls = fetch_with_browser(url)
+            return BeautifulSoup(html, "lxml"), html, video_urls
         resp = fetch(url, client=self.client)
-        return BeautifulSoup(resp.text, "lxml"), resp.text
+        return BeautifulSoup(resp.text, "lxml"), resp.text, []
+
+    def resolve_embed_streams(self, embed_url, wait_seconds=10):
+        """Resolve an embed URL to actual video stream URLs using headless browser."""
+        self.log(f"Resolving embed: {embed_url}")
+        from kwen_ext.utils.http import resolve_embed_url
+        try:
+            streams = resolve_embed_url(embed_url, wait_seconds=wait_seconds)
+            self.log(f"Found {len(streams)} streams from {embed_url}")
+            return streams
+        except Exception as e:
+            self.log(f"Failed to resolve {embed_url}: {e}")
+            return []
 
     def extract(self, url):
         """

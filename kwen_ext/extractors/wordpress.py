@@ -36,9 +36,18 @@ class WordPressAnimeExtractor(BaseExtractor):
         except Exception:
             return False
 
-    def extract(self, url):
+    def extract(self, url, use_browser=False):
         result = ExtractionResult()
-        soup, raw_html = self.fetch_page(url)
+        soup, raw_html, browser_videos = self.fetch_page(url, use_browser=use_browser)
+
+        # Add video URLs intercepted by browser
+        for bv in browser_videos:
+            result.sources.append({
+                "url": bv["url"],
+                "type": bv.get("type", "unknown"),
+                "quality": "unknown",
+                "label": "Browser Intercepted",
+            })
 
         # Title from og:title or <title>
         og_title = soup.find("meta", property="og:title")

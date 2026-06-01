@@ -82,3 +82,34 @@ def fetch(url, client=None, timeout=30):
 
     resp.raise_for_status()
     return resp
+
+
+def fetch_with_browser(url, timeout=60000):
+    """
+    Fetch a URL using a real browser (bypasses Cloudflare, renders JS).
+
+    Returns:
+        (html_content, video_urls) — the rendered page HTML and any intercepted video stream URLs
+    """
+    validate_url(url)
+
+    from kwen_ext.utils.browser import BrowserSession
+
+    with BrowserSession(headless=True, timeout=timeout) as browser:
+        html, video_urls = browser.fetch_page(url)
+        return html, video_urls
+
+
+def resolve_embed_url(embed_url, wait_seconds=10):
+    """
+    Visit an embed player page and resolve to actual video stream URLs.
+
+    Returns:
+        list of {"url": ..., "type": ...} for found streams
+    """
+    validate_url(embed_url)
+
+    from kwen_ext.utils.browser import BrowserSession
+
+    with BrowserSession(headless=True) as browser:
+        return browser.resolve_embed(embed_url, wait_seconds=wait_seconds)

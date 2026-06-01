@@ -12,6 +12,7 @@ setup(
         "beautifulsoup4>=4.12.0",
         "cloudscraper>=1.2.71",
         "lxml>=4.9.0",
+        "playwright>=1.40.0",
     ],
     entry_points={
         "console_scripts": [

@@ -1,0 +1,39 @@
+{
+  "title": "Doraemon the Movie 1988: The Record of Nobita's Parallel Visit to the West",
+  "poster": "https://dorabash.in/wp-content/uploads/2026/01/72414l.jpg",
+  "description": "Nobita is trying to prove that the Monkey King exists...",
+  "duration": "90M",
+  "sources": [],
+  "downloads": [
+    {
+      "url": "https://www.mediafire.com/file/...",
+      "quality": "1080p",
+      "host": "Mediafire"
+    }
+  ],
+  "embeds": [
+    {
+      "url": "https://abyssplayer.com/zgNtdANCr",
+      "label": "Abyss",
+      "type": "embed",
+      "audio": "sub"
+    },
+    {
+      "url": "https://bysevpoint.com/e/nfgkkjghh9sg",
+      "label": "Moon",
+      "type": "embed",
+      "audio": "sub"
+    },
+    {
+      "url": "https://abyssplayer.com/NsgCrOvp",
+      "label": "Hindi",
+      "type": "embed",
+      "audio": "dub"
+    }
+  ],
+  "metadata": {
+    "source": "wordpress",
+    "genres": ["Action", "Adventure", "Comedy", "Fantasy"],
+    "score": "10 (1 Voted)"
+  }
+}

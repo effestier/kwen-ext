@@ -51,7 +51,7 @@ def validate_url(url):
 
 def get_client(force_cloudscraper=False):
     """Return an HTTP session, using cloudscraper if available."""
-    if force_cloudscraper or HAS_CLOUDSCRAPER:
+    if force_cloudscraper and HAS_CLOUDSCRAPER:
         try:
             return cloudscraper.create_scraper(browser={"browser": "chrome", "platform": "windows", "mobile": False})
         except Exception:
@@ -65,8 +65,9 @@ def fetch(url, client=None, timeout=30):
     """Fetch a URL and return the response. Auto-retries with cloudscraper on 403."""
     validate_url(url)
 
+    # Always try cloudscraper first if available (handles Cloudflare)
     if client is None:
-        client = get_client()
+        client = get_client(force_cloudscraper=True)
 
     resp = client.get(url, timeout=timeout, allow_redirects=True)
 
@@ -74,8 +75,8 @@ def fetch(url, client=None, timeout=30):
     if resp.url:
         validate_url(resp.url)
 
-    # If blocked and we're not already using cloudscraper, retry with it
-    if resp.status_code == 403 and not HAS_CLOUDSCRAPER:
+    # If blocked, retry with cloudscraper
+    if resp.status_code == 403 and HAS_CLOUDSCRAPER:
         client = get_client(force_cloudscraper=True)
         resp = client.get(url, timeout=timeout, allow_redirects=True)
 

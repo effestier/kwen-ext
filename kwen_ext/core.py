@@ -24,6 +24,30 @@ def get_extractor(url, verbose=False):
     return FALLBACK(verbose=verbose)
 
 
+def extract_html(html_content, url="https://example.com", extractor_name=None, verbose=False):
+    """
+    Extract media info from raw HTML content (e.g., saved page).
+
+    Args:
+        html_content: Raw HTML string
+        url: Original URL (for resolving relative links)
+        extractor_name: Force a specific extractor (optional)
+        verbose: Print debug info
+
+    Returns:
+        ExtractionResult with all found media
+    """
+    from bs4 import BeautifulSoup
+
+    ext = IframeExtractor(verbose=verbose)
+
+    # Override fetch_page to return our saved HTML
+    soup = BeautifulSoup(html_content, "lxml")
+    ext.fetch_page = lambda u: (soup, html_content)
+
+    return ext.extract(url)
+
+
 def extract(url, extractor_name=None, verbose=False):
     """
     Extract media info from a URL.

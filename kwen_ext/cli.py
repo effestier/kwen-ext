@@ -5,7 +5,7 @@ import json
 import sys
 
 from kwen_ext import __version__
-from kwen_ext.core import extract
+from kwen_ext.core import extract, extract_html
 from kwen_ext.utils.decode import sanitize_url, is_valid_url
 
 
@@ -104,6 +104,7 @@ def main():
     parser.add_argument("--extractor", "-e", help="Force a specific extractor (wordpress, iframe)")
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
     parser.add_argument("--downloads-only", action="store_true", help="Show only download links")
+    parser.add_argument("--html", help="Parse a saved HTML file instead of fetching URL")
     parser.add_argument("--version", action="version", version=f"kwen-ext v{__version__}")
     parser.add_argument("--no-banner", action="store_true", help="Suppress the ASCII banner")
 
@@ -127,13 +128,34 @@ def main():
     print(f"  Extracting from: {args.url}\n")
 
     try:
-        result = extract(
-            args.url,
-            extractor_name=args.extractor,
-            verbose=args.verbose,
-        )
+        if args.html:
+            # Parse local HTML file
+            with open(args.html, "r", encoding="utf-8") as f:
+                html_content = f.read()
+            result = extract_html(
+                html_content,
+                url=args.url,
+                extractor_name=args.extractor,
+                verbose=args.verbose,
+            )
+        else:
+            result = extract(
+                args.url,
+                extractor_name=args.extractor,
+                verbose=args.verbose,
+            )
     except Exception as e:
-        print(f"  Error: {e}", file=sys.stderr)
+        error_msg = str(e)
+        print(f"  Error: {error_msg}", file=sys.stderr)
+
+        if "403" in error_msg:
+            print("\n  Cloudflare blocked this request.", file=sys.stderr)
+            print("  Workarounds:", file=sys.stderr)
+            print("    1. Save the page HTML from your browser (Ctrl+S), then:", file=sys.stderr)
+            print(f"       kwen-ext {args.url} --html saved_page.html", file=sys.stderr)
+            print("    2. Use yt-dlp: yt-dlp <url>", file=sys.stderr)
+            print("    3. Use a browser extension like Video DownloadHelper", file=sys.stderr)
+
         if args.verbose:
             import traceback
             traceback.print_exc()
